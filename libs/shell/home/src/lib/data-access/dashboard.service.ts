@@ -1,5 +1,6 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { AuthService } from '@restaurant/shared/auth';
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import {
@@ -18,6 +19,7 @@ import {
 @Injectable({ providedIn: 'root' })
 export class DashboardService {
   private readonly http = inject(HttpClient);
+  private readonly auth = inject(AuthService);
 
   readonly loading = signal(true);
 
@@ -82,13 +84,23 @@ export class DashboardService {
     presupuesto: this._presupuesto(),
   }));
 
+  // Permisos requeridos por módulo — mismos que el guard de cada ruta en shell.routes.ts.
+  // Solo se muestra la tarjeta si el usuario tiene al menos uno (igual que permissionGuard).
+  private static readonly PERMISOS_INVENTARIO = ['bienes:ver', 'facturas:ver', 'consolidado:ver', 'alertas:ver', 'FACTURAS_GENERAR'];
+
   readonly modulos = computed<ModuleCard[]>(() => {
     const alertas = this._alertas();
     const facturas = this._facturas();
-    return [
-      { label: 'Cocina', description: 'Pedidos, recetas y tiempos', icon: 'chef-hat', ruta: '/app/cocina' },
-      { label: 'Bar', description: 'Bebidas y barismo', icon: 'wine', ruta: '/app/bar' },
-      { label: 'Restaurante', description: 'Mesas, pedidos y caja', icon: 'utensils', ruta: '/app/restaurante' },
+    const permisosUsuario = this.auth.currentUser()?.permisos ?? [];
+    const tieneAcceso = (req: string[]) => req.length === 0 || req.some(p => permisosUsuario.includes(p));
+
+    const todos: (ModuleCard & { permisos: string[] })[] = [
+      { label: 'Cocina', description: 'Pedidos, recetas y tiempos', icon: 'chef-hat', ruta: '/app/cocina',
+        permisos: ['RECETAS_GESTIONAR', 'RECETAS_CONSULTAR', 'COMANDAS_CONSULTAR', 'PEDIDOS_ACTIVOS_VISUALIZAR'] },
+      { label: 'Bar', description: 'Bebidas y barismo', icon: 'wine', ruta: '/app/bar',
+        permisos: ['COMANDAS_CONSULTAR', 'RECETAS_CONSULTAR', 'PEDIDOS_ACTIVOS_VISUALIZAR'] },
+      { label: 'Restaurante', description: 'Mesas, pedidos y caja', icon: 'utensils', ruta: '/app/restaurante',
+        permisos: ['MODULO_MESAS_VER', 'MESAS_CONSULTAR', 'COMANDAS_CREAR', 'PEDIDOS_ACTIVOS_VISUALIZAR', 'FACTURAS_GENERAR'] },
       {
         label: 'Inventario',
         description: 'Bienes, stock y conciliación',
@@ -96,8 +108,8 @@ export class DashboardService {
         ruta: '/app/inventario',
         badgeCount: alertas?.alertasPendientes ?? undefined,
         badgeType: alertas && alertas.alertasPendientes > 0 ? 'alert' : undefined,
+        permisos: DashboardService.PERMISOS_INVENTARIO,
       },
-
       {
         label: 'Facturación',
         description: 'FEL, CUFE y facturas',
@@ -105,13 +117,23 @@ export class DashboardService {
         ruta: '/app/inventario/facturas',
         badgeCount: facturas?.totalRegistradas ?? undefined,
         badgeType: facturas && facturas.totalRegistradas > 0 ? 'info' : undefined,
+        permisos: DashboardService.PERMISOS_INVENTARIO,
       },
-      { label: 'Presupuesto', description: 'Techos y ejecución ZESE', icon: 'wallet', ruta: '/app/inventario/presupuesto' },
-      { label: 'Requisiciones', description: 'Solicitudes y actas', icon: 'clipboard-list', ruta: '/app/inventario/requisiciones' },
-      { label: 'Reportes', description: 'Exportables PDF y Excel', icon: 'bar-chart-2', ruta: '/app/reportes' },
-      { label: 'Usuarios', description: 'Roles y permisos', icon: 'users', ruta: '/app/usuarios' },
-      { label: 'Notificaciones', description: 'Alertas en tiempo real', icon: 'bell', ruta: '/app/notificaciones' },
+      { label: 'Presupuesto', description: 'Techos y ejecución ZESE', icon: 'wallet', ruta: '/app/inventario/presupuesto',
+        permisos: DashboardService.PERMISOS_INVENTARIO },
+      { label: 'Requisiciones', description: 'Solicitudes y actas', icon: 'clipboard-list', ruta: '/app/inventario/requisiciones',
+        permisos: DashboardService.PERMISOS_INVENTARIO },
+      { label: 'Reportes', description: 'Exportables PDF y Excel', icon: 'bar-chart-2', ruta: '/app/reportes',
+        permisos: ['MODULO_REPORTES_VER', 'REPORTES_GESTIONAR', 'REPORTES_PEDIDOS_COCINA', 'REPORTES_VENTAS_MESERO'] },
+      { label: 'Usuarios', description: 'Roles y permisos', icon: 'users', ruta: '/app/usuarios',
+        permisos: ['USUARIOS_LISTAR', 'USUARIOS_VER'] },
+      { label: 'Notificaciones', description: 'Alertas en tiempo real', icon: 'bell', ruta: '/app/notificaciones',
+        permisos: [] },
     ];
+
+    return todos
+      .filter(m => tieneAcceso(m.permisos))
+      .map(({ permisos, ...card }) => card);
   });
 
   readonly actividadReciente: ActividadReciente[] = [];

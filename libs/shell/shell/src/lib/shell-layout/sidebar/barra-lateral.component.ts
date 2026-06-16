@@ -41,13 +41,12 @@ export class BarraLateralComponent {
     const currentRole = currentUser?.rol;
     const permisos = currentUser?.permisos ?? [];
 
-    const bypass = !currentUser || permisos.length === 0;
-
+    // Fail-closed: si un ítem exige rol/permiso y el usuario no lo tiene, se oculta.
+    // (Antes había un bypass que mostraba TODO cuando permisos venía vacío.)
     return this.config.grupos
       .map(grupo => ({
         ...grupo,
         items: grupo.items.filter(item => {
-          if (bypass) return true;
           if (item.roles?.length && (!currentRole || !item.roles.includes(currentRole))) {
             return false;
           }
