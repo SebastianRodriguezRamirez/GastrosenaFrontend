@@ -1,3 +1,4 @@
+import { Rol } from '@restaurant/shared/models';
 import { BarraLateralConfig, TopNavLink } from './nav.models';
 
 export const TOP_MENU_CONFIG: TopNavLink[] = [];
@@ -98,6 +99,7 @@ export const SIDEBAR_CONFIG: BarraLateralConfig = {
           label: 'Fichas',
           ruta: '/app/fichas',
           icono: 'book-open',
+          roles: [Rol.ADMINISTRADOR], // solo el admin ve Fichas en el menú (igual que el guard de la ruta)
           children: [
             { label: 'Lista de Fichas', ruta: '/app/fichas', icono: 'list' },
           ],
